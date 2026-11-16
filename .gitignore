@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vite/
+*.local
+
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+venv/
+
+.DS_Store
+studionet-run.json
+
+.env
+.env.*
+*.keystore

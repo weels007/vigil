@@ -1,0 +1,72 @@
+name: Studionet
+
+on:
+  workflow_dispatch:
+    inputs:
+      adjudication:
+        description: Run the real LLM adjudication of a vault (slow)
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+      - 'scripts/**'
+      - '.github/workflows/studionet.yml'
+
+concurrency:
+  group: studionet
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy and drive the lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[deploy]') ||
+      contains(github.event.head_commit.message, '[adjudication]')
+    permissions:
+      contents: write
+    env:
+      ADJUDICATION: ${{ (github.event_name == 'workflow_dispatch' && inputs.adjudication) || contains(github.event.head_commit.message, '[adjudication]') }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Deploy and drive the lifecycle
+        env:
+          VIGIL_TESTER1_KEYSTORE: ${{ secrets.VIGIL_TESTER1_KEYSTORE }}
+          VIGIL_TESTER1_PASSWORD: ${{ secrets.VIGIL_TESTER1_PASSWORD }}
+          VIGIL_TESTER2_KEYSTORE: ${{ secrets.VIGIL_TESTER2_KEYSTORE }}
+          VIGIL_TESTER2_PASSWORD: ${{ secrets.VIGIL_TESTER2_PASSWORD }}
+        run: node scripts/studionet-run.mjs
+
+      - name: Record the contract address
+        if: always() && env.CONTRACT_ADDRESS != ''
+        run: node scripts/record-address.mjs "$CONTRACT_ADDRESS"
+
+      - name: Commit the recorded address
+        if: always() && env.CONTRACT_ADDRESS != ''
+        run: |
+          git config user.name "vigil-keeper"
+          git config user.email "vigil-keeper@users.noreply.github.com"
+          git add src/lib/genlayer.ts README.md SUBMISSION.md
+          git diff --cached --quiet || git commit -m "Record Studionet contract ${CONTRACT_ADDRESS:0:10}"
+          git push
+
+      - name: Upload the run report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studionet-run
+          path: studionet-run.json
+          if-no-files-found: ignore
