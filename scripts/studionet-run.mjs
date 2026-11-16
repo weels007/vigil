@@ -181,26 +181,37 @@ function makeClient(account) {
   return createClient({ chain: studionet, account });
 }
 
-async function waitForTx(client, hash) {
+async function waitForTx(client, hash, attempts = 200) {
+  let last = null;
   let lastError = '';
   let lastStatus = '';
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       const tx = await client.getTransaction({ hash });
       if (tx) {
+        last = tx;
         const status = String(tx.statusName ?? tx.status ?? '');
         if (status !== lastStatus) {
           lastStatus = status;
           console.log(`[INFO] transaction ${hash} status ${status || 'unknown'}`);
+          console.log(
+            `[INFO] shape recipient=${tx.recipient ?? tx.to_address ?? '-'} decoded=${JSON.stringify(
+              tx.txDataDecoded ?? null,
+            )} dataKeys=${tx.data ? Object.keys(tx.data).join(',') : '-'}`,
+          );
         }
         if (tx.txExecutionResultName) return tx;
-        if (['ACCEPTED', 'FINALIZED', 'UNDETERMINED', 'CANCELED'].includes(status)) return tx;
+        if (['FINALIZED', 'UNDETERMINED', 'CANCELED'].includes(status)) return tx;
         if (typeof tx.txExecutionResult === 'number' && tx.txExecutionResult > 0) return tx;
       }
     } catch (error) {
       lastError = error?.message ?? String(error);
     }
     await sleep(3000);
+  }
+  if (last) {
+    record('transaction wait', 'WARN', `${hash} settled at status ${lastStatus || 'unknown'}`);
+    return last;
   }
   throw new Error(`timed out waiting for ${hash}: ${lastError || lastStatus || 'no state'}`);
 }
@@ -261,6 +272,7 @@ function extractAddress(receipt) {
     receipt?.txDataDecoded?.contract_address,
     receipt?.data?.contract_address,
     receipt?.data?.contractAddress,
+    receipt?.data?.to_address,
     receipt?.contract_address,
     receipt?.recipient,
     receipt?.to_address,
@@ -274,12 +286,13 @@ function extractAddress(receipt) {
 async function deploy(client, code) {
   const hash = await client.deployContract({ code, args: [] });
   record('deploy transaction', 'INFO', String(hash));
-  const receipt = await waitForTx(client, hash);
+  const receipt = await waitForTx(client, hash, 120);
   let address = extractAddress(receipt);
   if (!address) {
     try {
       const transaction = await client.getTransaction({ hash });
       address = extractAddress(transaction);
+      record('deploy receipt shape', 'INFO', JSON.stringify(transaction).slice(0, 600));
     } catch {
       address = '';
     }
@@ -362,8 +375,19 @@ async function main() {
     failures += 1;
     return;
   }
-  if (!deployment.receipt || deployment.receipt.txExecutionResultName !== 'FINISHED_WITH_RETURN') {
-    record('deploy', 'FAIL', deployment.receipt?.txExecutionResultName ?? 'no receipt');
+  if (!deployment.receipt) {
+    record('deploy', 'FAIL', 'the deployment produced no transaction receipt');
+    failures += 1;
+    return;
+  }
+  if (deployment.receipt.txExecutionResultName !== 'FINISHED_WITH_RETURN') {
+    record(
+      'deploy',
+      'FAIL',
+      `execution ${deployment.receipt.txExecutionResultName ?? 'unknown'} at status ${
+        deployment.receipt.statusName ?? deployment.receipt.status ?? '?'
+      }`,
+    );
     failures += 1;
     return;
   }
