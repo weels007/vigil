@@ -51,16 +51,31 @@ jobs:
         run: node scripts/studionet-run.mjs
 
       - name: Record the contract address
-        if: always() && env.CONTRACT_ADDRESS != ''
-        run: node scripts/record-address.mjs "$CONTRACT_ADDRESS"
+        if: always()
+        run: |
+          if [ ! -f studionet-run.json ]; then
+            echo "No run report; nothing to record."
+            exit 0
+          fi
+          ADDRESS=$(node -e "const r=require('./studionet-run.json'); process.stdout.write(r.contractAddress||'')")
+          if [ -z "$ADDRESS" ]; then
+            echo "The run did not deploy a contract; nothing to record."
+            exit 0
+          fi
+          echo "Recording $ADDRESS"
+          node scripts/record-address.mjs "$ADDRESS"
 
       - name: Commit the recorded address
-        if: always() && env.CONTRACT_ADDRESS != ''
+        if: always()
         run: |
           git config user.name "vigil-keeper"
           git config user.email "vigil-keeper@users.noreply.github.com"
           git add src/lib/genlayer.ts README.md SUBMISSION.md
-          git diff --cached --quiet || git commit -m "Record Studionet contract ${CONTRACT_ADDRESS:0:10}"
+          if git diff --cached --quiet; then
+            echo "The address was already recorded."
+            exit 0
+          fi
+          git commit -m "Record Studionet contract address"
           git push
 
       - name: Upload the run report
