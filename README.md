@@ -95,14 +95,22 @@ Direct mode: no Docker, no network, contract executed in-process.
 
 ```bash
 pip install -r requirements.txt
+
+# genlayer-test 0.29.2 ignores GENVM_VERSION and resolves GitHub's newest GenVM
+# release, which no longer ships genvm-universal.tar.xz. Seed its cache with the
+# bundle the contract header targets, then run:
+mkdir -p ~/.cache/gltest-direct
+curl -L -o ~/.cache/gltest-direct/genvm-universal-v0.2.16.tar.xz \
+  https://github.com/genlayerlabs/genvm/releases/download/v0.2.16/genvm-universal.tar.xz
+
 GENVM_VERSION=v0.2.16 pytest -q
 ```
 
 The suite covers the registry and creation guards, the settle / no-settle / unverifiable / injection
 paths, cancel, refund, cooldown, credit accounting, double settlement, validator agreement, a
 structural lint of the contract source, and an adversarial file for malformed adjudicator output and
-hostile pages. The first direct-mode run downloads the pinned GenVM runner bundle from the GenVM
-releases; the tests themselves perform no network calls.
+hostile pages. The runner bundle is downloaded once, at session start; the tests themselves perform
+no network calls.
 
 ## Deploy
 
