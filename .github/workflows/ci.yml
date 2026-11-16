@@ -26,6 +26,26 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements.txt
 
+      # genlayer-test 0.29.2 ignores GENVM_VERSION and asks GitHub for the newest
+      # release's genvm-universal.tar.xz, which newer releases no longer ship.
+      # Pre-seeding its cache pins the runner bundle the contract header targets.
+      - name: Cache the pinned GenVM SDK bundle
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/gltest-direct/genvm-universal-v0.2.16.tar.xz
+          key: genvm-universal-v0.2.16
+
+      - name: Fetch the pinned GenVM SDK bundle
+        run: |
+          CACHE="$HOME/.cache/gltest-direct/genvm-universal-v0.2.16.tar.xz"
+          mkdir -p "$(dirname "$CACHE")"
+          if [ ! -f "$CACHE" ]; then
+            curl -L --fail --retry 3 --retry-delay 5 \
+              -o "$CACHE" \
+              https://github.com/genlayerlabs/genvm/releases/download/v0.2.16/genvm-universal.tar.xz
+          fi
+          ls -lh "$CACHE"
+
       - name: Run the suite
         env:
           GENVM_VERSION: v0.2.16

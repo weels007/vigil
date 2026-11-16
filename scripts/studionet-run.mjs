@@ -317,14 +317,14 @@ async function main() {
   const beneficiaryBalance = await ethBalance(beneficiary.address);
   record('creator balance', 'INFO', `${formatGen(creatorBalance)} GEN`);
   record('beneficiary balance', 'INFO', `${formatGen(beneficiaryBalance)} GEN`);
+  const funded = creatorBalance >= MIN_BALANCE;
 
-  if (creatorBalance < MIN_BALANCE) {
+  if (!funded) {
     record(
-      'deploy',
-      'SKIP',
-      'the creator wallet is unfunded on Studionet; add GEN in Studio (faucet) and re-run with VIGIL_TESTER1_KEYSTORE',
+      'wallet funding',
+      'WARN',
+      'the creator wallet holds less than 0.05 GEN; the contract can be deployed and read, but payable lifecycle steps will be skipped',
     );
-    return;
   }
 
   const deployment = await deploy(creatorClient, code);
@@ -346,6 +346,21 @@ async function main() {
 
   const startCount = Number(await readContract('get_vault_count'));
   check('empty registry', startCount === 0, `get_vault_count = ${startCount}`);
+
+  if (!funded) {
+    for (const step of [
+      'create_vault (cancel path)',
+      'cancel_vault',
+      'withdraw pull payment',
+      'create_vault (refund path)',
+      'refund after deadline',
+      'guard rejects beneficiary == creator',
+      'check_vault (LLM adjudication)',
+    ]) {
+      record(step, 'SKIP', 'creator wallet is unfunded; fund it from the Studio faucet and re-run');
+    }
+    return;
+  }
 
   // 1. Create a vault that the creator will cancel.
   const cancelDeadline = nowSeconds() + 3 * 86400;
