@@ -181,38 +181,54 @@ function makeClient(account) {
   return createClient({ chain: studionet, account });
 }
 
-async function wait(client, hash) {
-  return client.waitForTransactionReceipt({
-    hash,
-    status: 'ACCEPTED',
-    interval: 3000,
-    retries: 200,
-  });
+async function waitForTx(client, hash) {
+  let lastError = '';
+  let lastStatus = '';
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    try {
+      const tx = await client.getTransaction({ hash });
+      if (tx) {
+        const status = String(tx.statusName ?? tx.status ?? '');
+        if (status !== lastStatus) {
+          lastStatus = status;
+          console.log(`[INFO] transaction ${hash} status ${status || 'unknown'}`);
+        }
+        if (tx.txExecutionResultName) return tx;
+        if (['ACCEPTED', 'FINALIZED', 'UNDETERMINED', 'CANCELED'].includes(status)) return tx;
+        if (typeof tx.txExecutionResult === 'number' && tx.txExecutionResult > 0) return tx;
+      }
+    } catch (error) {
+      lastError = error?.message ?? String(error);
+    }
+    await sleep(3000);
+  }
+  throw new Error(`timed out waiting for ${hash}: ${lastError || lastStatus || 'no state'}`);
 }
 
 async function writeRaw(client, functionName, args, value = 0n) {
   const hash = await client.writeContract({ address: contractAddress, functionName, args, value });
-  const receipt = await wait(client, hash);
+  const receipt = await waitForTx(client, hash);
   return { hash, receipt, ok: receipt?.txExecutionResultName === 'FINISHED_WITH_RETURN' };
 }
 
 async function faucet(client, address) {
-  for (const amount of [100, 10 ** 17]) {
+  let last = 0n;
+  for (const amount of [10 ** 18, 10 ** 17]) {
     try {
       await client.request({ method: 'sim_fundAccount', params: [address, amount] });
     } catch (error) {
       record('faucet', 'WARN', `${address}: ${error?.message ?? error}`);
-      return 0n;
+      return last;
     }
     await sleep(2000);
-    const balance = await ethBalance(address);
-    if (balance > 0n) {
-      record('faucet', 'INFO', `funded ${address} with ${formatGen(balance)} GEN`);
-      return balance;
+    last = await ethBalance(address);
+    if (last >= MIN_BALANCE) {
+      record('faucet', 'INFO', `funded ${address} with ${formatGen(last)} GEN`);
+      return last;
     }
   }
-  record('faucet', 'WARN', `the faucet did not fund ${address}`);
-  return 0n;
+  record('faucet', 'WARN', `the faucet left ${address} with ${formatGen(last)} GEN`);
+  return last;
 }
 
 async function readContract(functionName, args = []) {
@@ -257,7 +273,8 @@ function extractAddress(receipt) {
 
 async function deploy(client, code) {
   const hash = await client.deployContract({ code, args: [] });
-  const receipt = await wait(client, hash);
+  record('deploy transaction', 'INFO', String(hash));
+  const receipt = await waitForTx(client, hash);
   let address = extractAddress(receipt);
   if (!address) {
     try {
@@ -317,6 +334,7 @@ async function main() {
 
   const creatorClient = makeClient(creator);
   const beneficiaryClient = makeClient(beneficiary);
+  record('chain', 'INFO', `${creatorClient.chain?.name ?? 'unknown'} (id ${creatorClient.chain?.id ?? '?'})`);
 
   let creatorBalance = await ethBalance(creator.address);
   let beneficiaryBalance = await ethBalance(beneficiary.address);
