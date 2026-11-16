@@ -45,20 +45,13 @@ interface WriteArgs {
   functionName: string;
   args: unknown[];
   value?: bigint;
-  fees?: Record<string, unknown>;
 }
 
 interface WaitArgs {
   hash: `0x${string}`;
-  waitUntil: 'decided' | 'finalized';
+  status?: string;
   interval?: number;
   retries?: number;
-}
-
-interface FeeEstimate {
-  distribution?: unknown;
-  messageAllocations?: unknown;
-  feeValue?: unknown;
 }
 
 export interface TxReceipt {
@@ -73,7 +66,6 @@ interface GenClient {
   readContract(args: ReadArgs): Promise<unknown>;
   writeContract(args: WriteArgs): Promise<`0x${string}`>;
   waitForTransactionReceipt(args: WaitArgs): Promise<TxReceipt>;
-  estimateTransactionFeesForWrite?(args: WriteArgs): Promise<FeeEstimate | null>;
 }
 
 const factory = createClient as unknown as (config: Record<string, unknown>) => GenClient;
@@ -159,29 +151,13 @@ export async function sendWrite(
     throw new Error('Vigil is not deployed yet. The contract address has not been recorded.');
   }
   const client = createWriteClient(address);
-  const payload: WriteArgs = { address: CONTRACT_ADDRESS, functionName, args, value };
-
-  let fees: Record<string, unknown> | undefined;
-  try {
-    const estimate = await client.estimateTransactionFeesForWrite?.(payload);
-    if (estimate && estimate.distribution) {
-      fees = {
-        distribution: estimate.distribution,
-        ...(estimate.messageAllocations ? { messageAllocations: estimate.messageAllocations } : {}),
-        feeValue: estimate.feeValue,
-      };
-    }
-  } catch {
-    fees = undefined;
-  }
-
-  return client.writeContract(fees ? { ...payload, fees } : payload);
+  return client.writeContract({ address: CONTRACT_ADDRESS, functionName, args, value });
 }
 
 export async function waitForOutcome(hash: `0x${string}`): Promise<TxReceipt> {
   const receipt = await readClient.waitForTransactionReceipt({
     hash,
-    waitUntil: 'decided',
+    status: 'ACCEPTED',
     interval: 3000,
     retries: 200,
   });

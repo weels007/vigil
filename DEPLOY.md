@@ -48,11 +48,14 @@ The runner resolves each test wallet in this order:
 2. `VIGIL_TESTER1_KEYSTORE` + `VIGIL_TESTER1_PASSWORD` (keystore JSON inline, or a path to a file)
 3. `../wallet/<NAME>.json` beside this repository, with `<NAME>.password` (or `.txt`) next to it,
    where `<NAME>` is `VIGIL_TESTER1_KEYSTORE` or `VIGIL_TESTER2_KEYSTORE`
-4. an ephemeral key generated for the run
+4. an ephemeral key generated for the run, funded from Studio's built-in faucet
+   (`sim_fundAccount`) when the run starts
 
 Add the two keystore/password pairs as repository secrets with exactly those names. The fourth
-fallback is honest but not useful for a live run: an unfunded key cannot pay fees, so the script
-records `SKIP` and deploys nothing rather than pretending success.
+fallback is what makes the workflow work out of the box on Studionet: the script asks the Studio
+faucet to fund the throwaway creator and beneficiary, then runs the whole lifecycle. If the faucet is
+unavailable, the run still deploys and reads the contract, records the address, and marks the payable
+steps `SKIP` rather than pretending they passed.
 
 `VIGIL_TESTER1_*` is the creator. `VIGIL_TESTER2_*` is the beneficiary and, when it has funds, the
 address that triggers the refund (refunds are permissionless).

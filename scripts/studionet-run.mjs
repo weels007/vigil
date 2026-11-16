@@ -184,30 +184,35 @@ function makeClient(account) {
 async function wait(client, hash) {
   return client.waitForTransactionReceipt({
     hash,
-    waitUntil: 'finalized',
+    status: 'ACCEPTED',
     interval: 3000,
-    retries: 400,
+    retries: 200,
   });
 }
 
 async function writeRaw(client, functionName, args, value = 0n) {
-  const payload = { address: contractAddress, functionName, args, value };
-  let fees;
-  try {
-    const estimate = await client.estimateTransactionFeesForWrite(payload);
-    if (estimate?.distribution) {
-      fees = {
-        distribution: estimate.distribution,
-        ...(estimate.messageAllocations ? { messageAllocations: estimate.messageAllocations } : {}),
-        feeValue: estimate.feeValue,
-      };
-    }
-  } catch {
-    fees = undefined;
-  }
-  const hash = await client.writeContract(fees ? { ...payload, fees } : payload);
+  const hash = await client.writeContract({ address: contractAddress, functionName, args, value });
   const receipt = await wait(client, hash);
   return { hash, receipt, ok: receipt?.txExecutionResultName === 'FINISHED_WITH_RETURN' };
+}
+
+async function faucet(client, address) {
+  for (const amount of [100, 10 ** 17]) {
+    try {
+      await client.request({ method: 'sim_fundAccount', params: [address, amount] });
+    } catch (error) {
+      record('faucet', 'WARN', `${address}: ${error?.message ?? error}`);
+      return 0n;
+    }
+    await sleep(2000);
+    const balance = await ethBalance(address);
+    if (balance > 0n) {
+      record('faucet', 'INFO', `funded ${address} with ${formatGen(balance)} GEN`);
+      return balance;
+    }
+  }
+  record('faucet', 'WARN', `the faucet did not fund ${address}`);
+  return 0n;
 }
 
 async function readContract(functionName, args = []) {
@@ -313,8 +318,12 @@ async function main() {
   const creatorClient = makeClient(creator);
   const beneficiaryClient = makeClient(beneficiary);
 
-  const creatorBalance = await ethBalance(creator.address);
-  const beneficiaryBalance = await ethBalance(beneficiary.address);
+  let creatorBalance = await ethBalance(creator.address);
+  let beneficiaryBalance = await ethBalance(beneficiary.address);
+  if (creatorBalance < MIN_BALANCE) {
+    creatorBalance = await faucet(creatorClient, creator.address);
+    beneficiaryBalance = await faucet(beneficiaryClient, beneficiary.address);
+  }
   record('creator balance', 'INFO', `${formatGen(creatorBalance)} GEN`);
   record('beneficiary balance', 'INFO', `${formatGen(beneficiaryBalance)} GEN`);
   const funded = creatorBalance >= MIN_BALANCE;
@@ -327,7 +336,14 @@ async function main() {
     );
   }
 
-  const deployment = await deploy(creatorClient, code);
+  let deployment;
+  try {
+    deployment = await deploy(creatorClient, code);
+  } catch (error) {
+    record('deploy', 'FAIL', error?.message ?? String(error));
+    failures += 1;
+    return;
+  }
   if (!deployment.receipt || deployment.receipt.txExecutionResultName !== 'FINISHED_WITH_RETURN') {
     record('deploy', 'FAIL', deployment.receipt?.txExecutionResultName ?? 'no receipt');
     failures += 1;
