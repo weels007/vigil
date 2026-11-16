@@ -53,7 +53,7 @@ jobs:
             echo "No run report; nothing to record."
             exit 0
           fi
-          ADDRESS=$(node -e "const r=require('./studionet-run.json'); process.stdout.write(r.contractAddress||'')")
+          ADDRESS=$(python3 -c "import json;print(json.load(open('studionet-run.json')).get('contractAddress',''))")
           if [ -z "$ADDRESS" ]; then
             echo "The run did not deploy a contract; nothing to record."
             exit 0
