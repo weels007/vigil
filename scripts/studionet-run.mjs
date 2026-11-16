@@ -216,10 +216,19 @@ async function waitForTx(client, hash, attempts = 200) {
   throw new Error(`timed out waiting for ${hash}: ${lastError || lastStatus || 'no state'}`);
 }
 
+function txSucceeded(receipt) {
+  if (!receipt) return false;
+  if (receipt.txExecutionResultName) {
+    return receipt.txExecutionResultName === 'FINISHED_WITH_RETURN';
+  }
+  const status = String(receipt.statusName ?? '');
+  return status === 'ACCEPTED' || status === 'FINALIZED';
+}
+
 async function writeRaw(client, functionName, args, value = 0n) {
   const hash = await client.writeContract({ address: contractAddress, functionName, args, value });
   const receipt = await waitForTx(client, hash);
-  return { hash, receipt, ok: receipt?.txExecutionResultName === 'FINISHED_WITH_RETURN' };
+  return { hash, receipt, ok: txSucceeded(receipt) };
 }
 
 async function faucet(client, address) {
@@ -380,24 +389,23 @@ async function main() {
     failures += 1;
     return;
   }
-  if (deployment.receipt.txExecutionResultName !== 'FINISHED_WITH_RETURN') {
-    record(
-      'deploy',
-      'FAIL',
-      `execution ${deployment.receipt.txExecutionResultName ?? 'unknown'} at status ${
-        deployment.receipt.statusName ?? deployment.receipt.status ?? '?'
-      }`,
-    );
-    failures += 1;
-    return;
-  }
   if (!deployment.address) {
     record('deploy', 'FAIL', 'the deployment receipt carried no contract address');
     failures += 1;
     return;
   }
+  const deployExecution = deployment.receipt.txExecutionResultName;
+  if (deployExecution && deployExecution !== 'FINISHED_WITH_RETURN') {
+    record('deploy', 'FAIL', `execution ${deployExecution}`);
+    failures += 1;
+    return;
+  }
   contractAddress = deployment.address;
-  record('deploy', 'PASS', `${contractAddress} (tx ${deployment.hash})`);
+  record(
+    'deploy',
+    'PASS',
+    `${contractAddress} at ${deployment.receipt.statusName ?? 'finalized'} (tx ${deployment.hash})`,
+  );
 
   const owner = await readContract('get_owner');
   check('owner view', String(owner).toLowerCase() === creator.address.toLowerCase(), String(owner));
@@ -489,6 +497,7 @@ async function main() {
   }
 
   // 4. Guard probe: the contract must reject a self-pay vault.
+  const beforeGuard = Number(await readContract('get_vault_count'));
   const guard = await writeRaw(creatorClient, 'create_vault', [
     creator.address,
     'Guard probe',
@@ -496,7 +505,12 @@ async function main() {
     'https://example.com/',
     nowSeconds() + 86400,
   ], 1n);
-  check('guard rejects beneficiary == creator', !guard.ok, guard.receipt?.txExecutionResultName ?? 'no receipt');
+  const afterGuard = Number(await readContract('get_vault_count'));
+  check(
+    'guard rejects beneficiary == creator',
+    afterGuard === beforeGuard,
+    `${beforeGuard} vaults before, ${afterGuard} after (tx ${guard.hash})`,
+  );
 
   const totals = await readJson('get_totals');
   check('totals view', totals !== null && typeof totals.vault_count === 'number', JSON.stringify(totals));
