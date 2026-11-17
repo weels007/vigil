@@ -75,7 +75,7 @@ The script deploys, then asserts on chain state:
 | withdraw | external transfer executes, credit returns to zero |
 | refund | a third vault with a 75-second deadline, 80 seconds of waiting, then `REFUNDED` and credit |
 | guard | a self-pay vault is rejected by the contract |
-| adjudication (true) | `check_vault` on `"The page contains the words 'Example Domain'"` returns `MET`, the vault becomes `TRIGGERED`, and the beneficiary credit equals the deposit |
+| adjudication (true) | `check_vault` on `"The page contains the word 'domain'"` returns `MET`, the vault becomes `TRIGGERED`, and the beneficiary credit equals the deposit |
 | adjudication (false) | `check_vault` on a condition the page does not satisfy leaves the vault `ACTIVE` and moves no credit |
 | adjudication payout | the beneficiary withdraws the settlement credit and its balance returns to zero |
 

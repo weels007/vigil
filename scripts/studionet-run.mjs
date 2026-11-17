@@ -530,7 +530,7 @@ async function main() {
   const settlementCreated = await writeRaw(creatorClient, 'create_vault', [
     beneficiary.address,
     'Studionet lifecycle: live settlement',
-    "The page contains the words 'Example Domain'.",
+    "The page contains the word 'domain'.",
     'https://example.com/',
     settlementDeadline,
   ], DEPOSIT);
