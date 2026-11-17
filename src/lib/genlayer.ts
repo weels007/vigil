@@ -12,7 +12,9 @@ import { TransactionHashVariant } from 'genlayer-js/types';
 export const CONTRACT_ADDRESS = '0x6fBBA7d2926aFc308FFbDe57Cc83BfC1622FF508';
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-export const HAS_CONTRACT = CONTRACT_ADDRESS !== ZERO_ADDRESS;
+// Widen the literal before comparing: once an address is recorded, the two
+// literal types no longer overlap and TypeScript rejects the comparison.
+export const HAS_CONTRACT = (CONTRACT_ADDRESS as string) !== ZERO_ADDRESS;
 
 export const STUDIONET_CHAIN_ID = 61999;
 export const STUDIONET_CHAIN_ID_HEX = '0xf22f';
