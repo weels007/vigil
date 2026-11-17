@@ -149,6 +149,29 @@ scripts/record-address.mjs writes the address into the app and docs
 docs/ARCHITECTURE.md      state machine, consensus, invariants, limits
 ```
 
+## Security review
+
+- **Evidence, not claim.** The contract fetches the URL itself and validators re-fetch it; no caller
+  supplies the evidence. The page title is kept, script/style/head noise is stripped, and the
+  evidence is fenced and capped.
+- **Only agreed fields move money.** Validators compare `outcome`, `met`, the injection flag and a
+  confidence bucket. `reason` is descriptive and is never used by settlement or by any later
+  decision.
+- **Bound after consensus.** Deterministic code re-checks the accepted label, boolean flags and
+  confidence, and applies the 60-confidence floor again; a malformed or inconsistent consensus
+  result becomes `UNVERIFIABLE`.
+- **Deadline cutoff.** A check is only accepted before the deadline, and is rejected again after
+  consensus if the clock crossed it. The beneficiary cannot front-run the creator's refund.
+- **Caller limits.** Only the creator can cancel. Refunds are permissionless but always pay the
+  creator. `withdraw` only ever pays the caller's own credit. There is no `__receive__` handler.
+- **Overlapping checks.** A second check that lands while one is being decided is re-read from
+  storage; the cooldown and the 12-check cap are enforced against the fresh state.
+- **Public hosts only.** Localhost, private IPv4 literals and `.local` / `.internal` suffixes are
+  refused at creation. A public name that later resolves to a private address is left to the GenVM
+  web gateway.
+- **Pull payments.** The credit is zeroed before the external transfer; a failed transfer reverts the
+  transaction and restores the credit.
+
 ## Limits, stated plainly
 
 - The evidence is whatever the page serves at check time, to each validator independently. A page
