@@ -10,9 +10,10 @@ The contract is already live at
 ## Before you start
 
 - A Vercel account linked to the GitHub account that owns `weels007/vigil`.
-- Vercel access to the repository. It is private today, so install the Vercel GitHub app for the
-  account/repository (or make the repository public if you prefer).
-- Node 20. `package.json` pins `"engines": { "node": "20.x" }`, which Vercel reads.
+- Vercel access to the repository. The repository is public; if you make it private later, install the
+  Vercel GitHub app for the account/repository.
+- Node 22.x. Vercel supports 22.x, 24.x and 26.x; **20.x is no longer offered**, so
+  `package.json` pins `"engines": { "node": "22.x" }` and Vercel reads it.
 
 ## Dashboard (works from a phone)
 
@@ -23,7 +24,7 @@ The contract is already live at
    - **Install Command:** `npm install`
    - **Build Command:** `npm run build`
    - **Output Directory:** `dist`
-   - **Node.js Version:** 20.x
+   - **Node.js Version:** 22.x
 3. Do **not** add environment variables. In particular do not add `CONTRACT_ADDRESS`; the address is
    a hard-coded constant on purpose.
 4. Deploy.
@@ -75,6 +76,10 @@ The CLI asks the same questions as the dashboard the first time.
 
 ## Troubleshooting
 
+- **Build fails before npm install, with a Node.js version error:** Vercel only offers Node 22.x,
+  24.x and 26.x. The earlier `20.x` pin is not available and fails the deployment. This repository
+  pins `22.x`; if the Vercel project setting is still on 20.x, set it to 22.x in
+  Settings → Build and Deployment → Node.js Version.
 - **Build fails on Vercel:** run `npm run build` locally; CI runs the same command
   (`tsc --noEmit && vite build`). Fix the first TypeScript error.
 - **Blank page:** check the Vercel build log and the browser's network panel. A built `index.html`
@@ -95,5 +100,4 @@ The CLI asks the same questions as the dashboard the first time.
 - Writes are signed by the user's wallet; the app never sees a private key.
 - The static headers above are conservative. A strict CSP is intentionally not set because wallet
   extensions inject scripts and styles at runtime and a bad policy would break signing.
-- The GitHub repository is private at the moment. Vercel needs access; if the GenLayer portal
-  requires public source, change the repository visibility before submitting.
+- The GitHub repository is public. Do not commit secrets; the app has none.

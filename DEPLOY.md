@@ -5,7 +5,7 @@ server: it talks to `https://studio.genlayer.com/api` and signs with the browser
 
 ## 1. What you need
 
-- Node 20+ and npm (for the app and the deployment script).
+- Node 22+ and npm (for the app and the deployment script).
 - A GenLayer wallet with GEN on Studionet. The Studio account selector has a built-in faucet.
 - Two wallets for the automated run: a **creator** and a **beneficiary**. Their addresses must differ,
   because the contract rejects a vault whose beneficiary is its creator.
@@ -102,7 +102,7 @@ After that, the app is live wherever `dist/` is served. `npm run build` produces
 
 The app is a static Vite build; there is no server and no environment variable. Import the repository
 in Vercel with the **Vite** preset, build command `npm run build`, output directory `dist`, install
-command `npm install`, Node 20. `vercel.json` already pins the build and adds safe static headers.
+command `npm install`, Node 22.x. `vercel.json` already pins the build and adds safe static headers.
 
 The full walkthrough, including the post-deploy checks and troubleshooting, is in
 [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md). After Vercel gives you the production URL, put it in
