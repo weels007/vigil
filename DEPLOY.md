@@ -98,7 +98,17 @@ The constructor takes no arguments. Copy the address the CLI prints, run
 
 After that, the app is live wherever `dist/` is served. `npm run build` produces it.
 
-## 5. Troubleshooting
+## 5. Deploy the app to Vercel
+
+The app is a static Vite build; there is no server and no environment variable. Import the repository
+in Vercel with the **Vite** preset, build command `npm run build`, output directory `dist`, install
+command `npm install`, Node 20. `vercel.json` already pins the build and adds safe static headers.
+
+The full walkthrough, including the post-deploy checks and troubleshooting, is in
+[docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md). After Vercel gives you the production URL, put it in
+the `App:` line of `README.md` and in the Links section of `SUBMISSION.md`.
+
+## 6. Troubleshooting
 
 - **`invalid_contract` on deploy**: the first line must pin the runner hash exactly. Do not change it
   to `py-genlayer:latest`.

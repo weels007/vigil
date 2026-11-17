@@ -82,7 +82,7 @@ Full result table: [Studionet run 44017515027](https://github.com/weels007/vigil
 ## Links
 
 - Contract: see the address at the top, or `Live contract` in `README.md`.
-- Live app (preview): [vigil-dxvf--preview.freemilk.app](https://vigil-dxvf--preview.freemilk.app)
+- App: Vite static build, Vercel-ready — see `docs/VERCEL_DEPLOY.md`.
 - Repository: [github.com/weels007/vigil](https://github.com/weels007/vigil)
 - Architecture: `docs/ARCHITECTURE.md`.
 - Security audit: `docs/SECURITY_AUDIT.md`.

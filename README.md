@@ -9,7 +9,7 @@ unreadable, or tries to manipulate the judge, the vault stays locked.
 
 Live contract: `0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC` on GenLayer Studionet — [explorer](https://explorer-studio.genlayer.com/address/0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC)
 
-Live app: [vigil-dxvf--preview.freemilk.app](https://vigil-dxvf--preview.freemilk.app) — the built app, opened with Run in FreeMilk.
+App: Vite static build, Vercel-ready — deployment guide in [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md).
 
 ## The shape of a vault
 
@@ -140,6 +140,11 @@ wallets, drives the lifecycle, prints a result table, and records the address ba
 `SUBMISSION.md` and `src/lib/genlayer.ts`. Push with `[adjudication]` instead to also run two real
 LLM checks against `example.com`: a true condition that must settle and a false one that must not.
 
+The app is a static Vite build. `vercel.json` pins the Vercel build (`npm run build` → `dist`) and adds
+safe static headers; [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) walks through importing the
+repository. The app needs no environment variables: the Studionet address is compiled in
+`src/lib/genlayer.ts`.
+
 ## Layout
 
 ```
@@ -150,6 +155,8 @@ scripts/studionet-run.mjs deploy + lifecycle driver
 scripts/record-address.mjs writes the address into the app and docs
 docs/ARCHITECTURE.md      state machine, consensus, invariants, limits
 docs/SECURITY_AUDIT.md    audit findings, fixes and feedback mapping
+docs/VERCEL_DEPLOY.md     Vercel deployment guide for the static app
+vercel.json               Vercel build, output and static headers
 ```
 
 ## Security review
