@@ -9,6 +9,8 @@ unreadable, or tries to manipulate the judge, the vault stays locked.
 
 Live contract: `0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC` on GenLayer Studionet — [explorer](https://explorer-studio.genlayer.com/address/0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC)
 
+Live app: [vigil-dxvf--preview.freemilk.app](https://vigil-dxvf--preview.freemilk.app) — the built app, opened with Run in FreeMilk.
+
 ## The shape of a vault
 
 A creator locks GEN with:
