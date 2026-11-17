@@ -164,6 +164,9 @@ settles, cancels and refunds in one contract instance.
   history is only as rich as its check log.
 - **LLM subjectivity.** The confidence bucket and exact `met` comparison bound it, but two honest
   models can disagree on edge cases; the vault stays `ACTIVE`.
+- **Literal judges.** In the first live `[adjudication]` run the judge read a condition that asked
+  for an exact phrase strictly and returned `NOT_MET`, so the vault stayed `ACTIVE` with no credit.
+  That is the intended fail-closed behaviour: a missed settlement is recoverable, a wrong one is not.
 - **One URL.** A condition that needs several sources must be written to work from one page.
 - **No partial settlement.** One condition, one amount, one beneficiary.
 - **Studionet only.** No audit, no mainnet deployment; validator behaviour and fees differ on a

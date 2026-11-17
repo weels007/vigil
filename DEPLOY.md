@@ -68,7 +68,7 @@ The script deploys, then asserts on chain state:
 
 | Step | Check |
 | --- | --- |
-| deploy | receipt is `FINISHED_WITH_RETURN`, address extracted and printed |
+| deploy | receipt is finalized (`FINISHED_WITH_RETURN` when Studio surfaces it), address extracted and printed |
 | owner | `get_owner()` is the creator wallet |
 | create | `get_vault_count` grows, the card is `ACTIVE`, amount and beneficiary match |
 | cancel | state `CANCELLED`, creator credit equals the deposit |
