@@ -9,7 +9,7 @@ import { TransactionHashVariant } from 'genlayer-js/types';
  * never an environment variable. The Studionet workflow rewrites this line
  * after a successful deployment.
  */
-export const CONTRACT_ADDRESS = '0xe5f0604D72C36e4623971599E6C33816D7E973DF';
+export const CONTRACT_ADDRESS = '0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC';
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // Widen the literal before comparing: once an address is recorded, the two

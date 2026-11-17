@@ -7,7 +7,7 @@ An LLM decides whether the condition is clearly satisfied, GenLayer validators i
 the same task, and money only moves when deterministic code sees agreement. If the page is missing,
 unreadable, or tries to manipulate the judge, the vault stays locked.
 
-Live contract: `0xe5f0604D72C36e4623971599E6C33816D7E973DF` on GenLayer Studionet — [explorer](https://explorer-studio.genlayer.com/address/0xe5f0604D72C36e4623971599E6C33816D7E973DF)
+Live contract: `0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC` on GenLayer Studionet — [explorer](https://explorer-studio.genlayer.com/address/0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC)
 
 ## The shape of a vault
 
