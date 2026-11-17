@@ -65,4 +65,5 @@ oracle challenges, arbitration escrow, fee oracles, prediction markets) have no 
 - CI: `.github/workflows/ci.yml` runs pytest and `npm run build`.
 - Live: `.github/workflows/studionet.yml` with `[adjudication]` deploys to Studionet, drives the
   lifecycle with two funded wallets, runs two real LLM checks, prints a result table and records the
-  contract address.
+  contract address. The audited build's run is
+  [44017515027](https://github.com/weels007/vigil/actions/runs/44017515027) and every step passed.

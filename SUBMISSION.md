@@ -65,7 +65,7 @@ self-pay guard, a live `check_vault` that returned `MET` and settled to the bene
 withdrew the credit), and a live check on a condition the page does not meet that left its vault
 `ACTIVE`.
 
-Full result table: [Studionet run 44008062602](https://github.com/weels007/vigil/actions/runs/44008062602).
+Full result table: [Studionet run 44017515027](https://github.com/weels007/vigil/actions/runs/44017515027).
 
 ## Proof
 
