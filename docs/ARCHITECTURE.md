@@ -49,7 +49,7 @@ on the node, and `tests/test_lint.py` fails if one appears.
                       └──────────────┬───────────────┘
                                      │
         ┌────────────────────────────┼───────────────────────────┐
-        │ check: MET                 │ cancel (creator)          │ refund* (anyone)
+        │ check: MET (before deadline)│ cancel (creator)         │ refund* (anyone)
         ▼                            ▼                           ▼
   ┌────────────┐              ┌─────────────┐            ┌─────────────┐
   │ TRIGGERED  │              │  CANCELLED  │            │  REFUNDED   │
@@ -57,12 +57,14 @@ on the node, and `tests/test_lint.py` fails if one appears.
   └────────────┘              └─────────────┘            └─────────────┘
 
   * only when now >= deadline
+  check is only allowed while now < deadline
   NOT_MET / UNVERIFIABLE / INJECTION keep the vault ACTIVE and write the check log.
 ```
 
 Every terminal transition credits an address and decrements `total_locked` exactly once. A vault in
 a terminal state rejects `check_vault`, `cancel_vault` and `refund_vault`, which is what makes double
-settlement impossible even without a reentrancy guard.
+settlement impossible even without a reentrancy guard. After the deadline a check is rejected, so the
+beneficiary cannot take the deposit ahead of the creator's refund.
 
 ## 4. Deterministic vs non-deterministic
 
@@ -70,7 +72,7 @@ settlement impossible even without a reentrancy guard.
 
 **Deterministic, before the block**
 
-- vault exists, state is `ACTIVE`, `checks < 12`;
+- vault exists, state is `ACTIVE`, `now < deadline`, `checks < 12`;
 - cooldown: `now >= last_check_at + 3600` when at least one check happened;
 - copy `title`, `condition`, `url` into plain locals — no storage reads inside the block.
 
@@ -92,10 +94,17 @@ settlement impossible even without a reentrancy guard.
 
 **Deterministic, after the block**
 
-- re-read the vault, re-check `ACTIVE`;
-- increment `checks`, stamp `last_check_at`, store outcome/reason/flags;
-- if and only if `outcome == MET and met and not injection`: set `TRIGGERED`, credit the beneficiary,
-  move totals.
+- re-read the vault, re-check `ACTIVE` and re-read the wall clock; a check that finishes at or after
+  the deadline reverts, even if it started before it, so it can never take the creator's refund;
+- re-read `checks` and `last_check_at`: if another check landed while this one was being decided,
+  the cooldown and the 12-check cap are enforced against that fresh state;
+- normalise the consensus payload: `outcome` must be one of the four labels, `met` and `injection`
+  must be booleans, `confidence` must be an integer in 0–100, and `MET`/`NOT_MET`/`INJECTION` must
+  agree with the flags; anything else becomes `UNVERIFIABLE` before it is stored, and a `MET` below
+  the 60 confidence floor becomes `NOT_MET`;
+- increment `checks`, stamp `last_check_at` with the post-consensus clock, store outcome/reason/flags;
+- if and only if the normalised `outcome == MET and met and not injection`: set `TRIGGERED`, credit
+  the beneficiary, move totals.
 
 `gl.vm.run_nondet` returns the accepted leader value. The contract accepts either the value or a
 `Return`-shaped wrapper, so it is robust to the SDK surface.
@@ -135,8 +144,30 @@ transaction, so the credit is restored.
 **No value entry point.** There is no `__receive__`, so a bare transfer to the contract is rejected by
 GenVM rather than silently stranded. No public dunder name exists; the schema generator rejects them.
 
+**Public hosts only.** `create_vault` extracts the host from the URL and refuses `localhost`, the
+`[::1]` loopback, private IPv4 literals (`10/8`, `127/8`, `172.16/12`, `192.168/16`, `169.254/16`,
+`0/8`) and `.localhost` / `.local` / `.internal` suffixes. This blocks the obvious server-side
+request-forgery targets. A public name that later resolves to a private address (DNS rebinding) is
+outside the contract and must be handled by the GenVM web gateway.
+
+**Bound consensus output.** `reason` is descriptive only and is never compared. Every field that can
+move money (`outcome`, `met`, `injection`) is checked again by deterministic code after
+`run_nondet`: wrong types, an unknown label or an inconsistent combination become `UNVERIFIABLE`
+and cannot settle. A malformed consensus result never becomes a payout.
+
+**Title as evidence.** The page `<title>` is extracted before `<head>` is stripped, so an
+announcement that lives only in the title is still part of the fenced evidence.
+
 **Bounded abuse.** One check per hour per vault and at most 12 checks bound the LLM cost any single
 vault can impose. Checks are paid by the caller's transaction fee; vault money is untouched.
+
+**Deadline cutoff.** `check_vault` is rejected at or after the deadline, and its result is rejected
+again after consensus if the clock has crossed the deadline while validators were deciding. A
+beneficiary therefore cannot front-run the creator's refund with a late settlement.
+
+**Concurrent checks.** The vault is re-read after consensus. If a second check was committed while
+this one was deciding, the cooldown and the check cap are applied to the fresh state and the attempt
+counter is incremented from it, so overlapping transactions cannot overwrite the log or settle twice.
 
 **Deterministic settlement only.** No storage write, message emission or contract call happens inside
 the nondet block. `tests/test_lint.py` enforces that `gl.nondet` appears only inside `leader_fn`, that
@@ -149,8 +180,8 @@ the nondet block. `tests/test_lint.py` enforces that `gl.nondet` appears only in
    `REFUNDED`; each grows by exactly the vault amount.
 3. A vault leaves `ACTIVE` at most once.
 4. `credits[a]` is the sum of every terminal credit to `a` minus every withdrawal by `a`.
-5. A vault can only be `TRIGGERED` by a check whose `outcome == MET`, `met == true`,
-   `injection == false`, and whose validator agreed.
+5. A vault can only be `TRIGGERED` by a check made before the deadline whose normalised
+   `outcome == MET`, `met == true` and `injection == false`, and whose validators agreed.
 6. `withdraw` sends exactly the credit it clears.
 
 The direct-mode tests assert each invariant through the public views, including a full lifecycle that

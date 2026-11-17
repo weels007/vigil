@@ -1,8 +1,10 @@
 """Adversarial inputs: broken adjudicator answers, hostile pages and odd web responses."""
 
 import json
+import sys
 
 from conftest import (
+    DEADLINE,
     DEPOSIT,
     create_vault,
     hex_of,
@@ -10,6 +12,7 @@ from conftest import (
     mock_llm_raw,
     mock_page,
     vault_json,
+    warp,
 )
 
 
@@ -191,3 +194,138 @@ def test_two_vaults_with_swapped_mocks(deploy, direct_vm, actors):
     deploy.check_vault(second)
     assert vault_json(deploy, first)["state"] == "TRIGGERED"
     assert vault_json(deploy, second)["state"] == "ACTIVE"
+
+
+
+def install_consensus(monkeypatch, payload):
+    """Bypass the nondet block with a chosen accepted value."""
+    module = sys.modules.get("_contract_vigil")
+    assert module is not None, "contract module is not loaded"
+    monkeypatch.setattr(module.gl.vm, "run_nondet", lambda *args, **kwargs: payload)
+
+
+def test_page_title_is_supplied_as_evidence(deploy, direct_vm, actors):
+    vault_id = create_vault(
+        deploy,
+        direct_vm,
+        actors["alice"],
+        actors["bob"],
+        title="Landing",
+        condition="The page announces the landing.",
+    )
+    mock_page(
+        direct_vm,
+        body=(
+            "<html><head><title>Kestrel Nine has landed</title></head>"
+            "<body>Welcome to the mission log.</body></html>"
+        ),
+    )
+    mock_decision(
+        direct_vm,
+        met=True,
+        confidence=95,
+        pattern=r".*Kestrel Nine has landed.*",
+    )
+    assert deploy.check_vault(vault_id) == "TRIGGERED"
+
+
+def test_consensus_with_string_met_never_settles(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "MET", "met": "true", "injection": False, "confidence": 90, "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "UNVERIFIABLE"
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+    assert int(deploy.get_credit_of(hex_of(actors["bob"]))) == 0
+
+
+def test_consensus_with_unknown_outcome_never_settles(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "PAID", "met": True, "injection": False, "confidence": 90, "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "UNVERIFIABLE"
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+    assert int(deploy.get_credit_of(hex_of(actors["bob"]))) == 0
+
+
+def test_consensus_with_inconsistent_met_never_settles(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "MET", "met": False, "injection": False, "confidence": 90, "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "UNVERIFIABLE"
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+
+
+def test_consensus_with_inconsistent_injection_never_settles(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "INJECTION", "met": False, "injection": False, "confidence": 90, "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "UNVERIFIABLE"
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+
+
+def test_consensus_injection_flag_blocks_a_met_result(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "MET", "met": True, "injection": True, "confidence": 90, "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "INJECTION"
+    data = vault_json(deploy, vault_id)
+    assert data["state"] == "ACTIVE"
+    assert data["last_injection"] is True
+    assert int(deploy.get_credit_of(hex_of(actors["bob"]))) == 0
+
+
+def test_consensus_met_below_the_confidence_floor_never_settles(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "MET", "met": True, "injection": False, "confidence": 10, "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "NOT_MET"
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+    assert int(deploy.get_credit_of(hex_of(actors["bob"]))) == 0
+
+
+def test_consensus_with_invalid_confidence_never_settles(deploy, direct_vm, actors, monkeypatch):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    install_consensus(
+        monkeypatch,
+        {"outcome": "MET", "met": True, "injection": False, "confidence": "high", "reason": "fake"},
+    )
+    assert deploy.check_vault(vault_id) == "UNVERIFIABLE"
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+
+
+
+def test_consensus_cannot_settle_after_the_deadline(deploy, direct_vm, actors, monkeypatch):
+    """A check that starts before the deadline but finishes after it must not move money."""
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    module = sys.modules.get("_contract_vigil")
+    assert module is not None, "contract module is not loaded"
+
+    def delayed_consensus(*args, **kwargs):
+        warp(direct_vm, DEADLINE)
+        return {
+            "outcome": "MET",
+            "met": True,
+            "injection": False,
+            "confidence": 95,
+            "reason": "the page arrived late",
+        }
+
+    monkeypatch.setattr(module.gl.vm, "run_nondet", delayed_consensus)
+    with direct_vm.expect_revert("deadline has passed"):
+        deploy.check_vault(vault_id)
+    data = vault_json(deploy, vault_id)
+    assert data["state"] == "ACTIVE"
+    assert data["checks"] == 0
+    assert int(deploy.get_credit_of(hex_of(actors["bob"]))) == 0

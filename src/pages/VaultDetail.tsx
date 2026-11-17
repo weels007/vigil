@@ -101,9 +101,11 @@ export function VaultDetail({ id }: { id: number }) {
   const isCreator = wallet.address !== null && v.creator.toLowerCase() === wallet.address.toLowerCase();
   const canRefund = v.state === 'ACTIVE' && now >= v.deadline;
   const canCancel = v.state === 'ACTIVE' && isCreator;
-  const canCheck = v.state === 'ACTIVE' && v.checks < v.maxChecks;
+  const canCheck = v.state === 'ACTIVE' && v.checks < v.maxChecks && now < v.deadline;
   const cooldownActive = canCheck && v.checks > 0 && now < v.checkableAt;
   const creditValue = credit.data ?? 0n;
+  const anyPending =
+    isPending('check') || isPending('cancel') || isPending('refund') || isPending('withdraw');
 
   return (
     <div className="page">
@@ -211,7 +213,7 @@ export function VaultDetail({ id }: { id: number }) {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={isPending('check') || !wallet.address || cooldownActive}
+                  disabled={anyPending || !wallet.address || cooldownActive}
                   onClick={() =>
                     void act(
                       'check',
@@ -233,7 +235,7 @@ export function VaultDetail({ id }: { id: number }) {
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  disabled={isPending('cancel')}
+                  disabled={anyPending}
                   onClick={() => {
                     if (!window.confirm('Cancel this vault and return the deposit to the creator?')) {
                       return;
@@ -254,7 +256,7 @@ export function VaultDetail({ id }: { id: number }) {
                 <button
                   type="button"
                   className="btn btn-ghost"
-                  disabled={isPending('refund')}
+                  disabled={anyPending}
                   onClick={() =>
                     void act(
                       'refund',
@@ -272,7 +274,7 @@ export function VaultDetail({ id }: { id: number }) {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={isPending('withdraw')}
+                  disabled={anyPending}
                   onClick={() =>
                     void act(
                       'withdraw',
@@ -297,7 +299,7 @@ export function VaultDetail({ id }: { id: number }) {
 
             <p className="hint">
               Checks are paid out of the transaction fee, not the vault. A check can be called by
-              anyone, once per hour, up to {v.maxChecks} times.
+              anyone, once per hour, up to {v.maxChecks} times, and only before the deadline.
             </p>
           </section>
 

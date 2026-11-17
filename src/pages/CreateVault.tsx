@@ -68,6 +68,7 @@ export function CreateVault() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     if (!wallet.address) {
       setNotice({ tone: 'warn', text: 'Connect a wallet to open a vault.' });
       return;

@@ -40,6 +40,10 @@ EVIDENCE_END = "<<<VIGIL_EVIDENCE_END>>>"
 _SPACE = re.compile(r"\s+")
 _TAG_BLOCK = re.compile(r"(?is)<(script|style|noscript|svg|template|head)[^>]*>.*?</\1>")
 _TAG_ANY = re.compile(r"(?s)<[^>]*>")
+_TITLE = re.compile(r"(?is)<title[^>]*>(.*?)</title>")
+
+ZERO_ADDRESS_HEX = "0x" + "0" * 40
+KNOWN_OUTCOMES = (OUTCOME_MET, OUTCOME_NOT_MET, OUTCOME_UNVERIFIABLE, OUTCOME_INJECTION)
 
 
 @gl.evm.contract_interface
@@ -104,6 +108,49 @@ def _as_address(value) -> Address:
         raise gl.vm.UserError("address could not be parsed")
 
 
+def _url_host(url: str) -> str:
+    """Extract the lower-case host from an http(s) URL without parsing libraries."""
+    rest = url.split("://", 1)[1]
+    for separator in ("/", "?", "#"):
+        index = rest.find(separator)
+        if index >= 0:
+            rest = rest[:index]
+    if "@" in rest:
+        rest = rest.rsplit("@", 1)[1]
+    if rest.startswith("["):
+        end = rest.find("]")
+        if end >= 0:
+            return rest[: end + 1].lower()
+        return rest.lower()
+    return rest.split(":", 1)[0].lower()
+
+
+def _is_public_host(host: str) -> bool:
+    """Reject localhost, private IPv4 literals and local-only suffixes."""
+    if host in ("", "localhost", "[::1]", "::1"):
+        return False
+    if host.startswith("[::1"):
+        return False
+    for suffix in (".localhost", ".local", ".internal"):
+        if host.endswith(suffix):
+            return False
+    match = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", host)
+    if match is None:
+        return True
+    first, second, third, fourth = (int(match.group(i)) for i in range(1, 5))
+    if first > 255 or second > 255 or third > 255 or fourth > 255:
+        return True
+    if first in (0, 10, 127):
+        return False
+    if first == 169 and second == 254:
+        return False
+    if first == 192 and second == 168:
+        return False
+    if first == 172 and 16 <= second <= 31:
+        return False
+    return True
+
+
 def _send_gen(to: Address, amount: u256) -> None:
     """Pull payment: the contract only ever sends GEN from this one place."""
     _GenRecipient(to).emit_transfer(value=amount)
@@ -117,8 +164,16 @@ def _short(text, limit: int = 200) -> str:
 
 
 def _html_to_text(body: str) -> str:
-    """Reduce a page body to readable text and drop script/style noise."""
-    text = body[:MAX_RAW_CHARS]
+    """Reduce a page body to readable text, keeping the title, dropping script/style noise."""
+    raw = body[:MAX_RAW_CHARS]
+    title = ""
+    try:
+        match = _TITLE.search(raw)
+        if match:
+            title = _TAG_ANY.sub(" ", match.group(1))
+    except Exception:
+        title = ""
+    text = raw
     try:
         text = _TAG_BLOCK.sub(" ", text)
         text = _TAG_ANY.sub(" ", text)
@@ -130,7 +185,11 @@ def _html_to_text(body: str) -> str:
     text = text.replace("&gt;", ">")
     text = text.replace("&quot;", '"')
     text = text.replace("&#39;", "'")
-    return _SPACE.sub(" ", text).strip()
+    text = _SPACE.sub(" ", text).strip()
+    title = _SPACE.sub(" ", title).strip()
+    if title:
+        return title + ". " + text if text else title
+    return text
 
 
 def _response_status(response) -> int:
@@ -293,6 +352,37 @@ def _parse_decision(raw) -> dict:
     return _decision(OUTCOME_NOT_MET, False, False, confidence, reason)
 
 
+def _normalise_consensus(payload) -> tuple:
+    """Bind the accepted consensus value to the only fields that may move money."""
+    if not isinstance(payload, dict):
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned no decision"
+    outcome = payload.get("outcome")
+    met = payload.get("met")
+    injection = payload.get("injection")
+    confidence = payload.get("confidence")
+    if not isinstance(outcome, str) or not isinstance(met, bool) or not isinstance(injection, bool):
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an invalid decision"
+    if isinstance(confidence, bool) or not isinstance(confidence, int):
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an invalid confidence"
+    if confidence < 0 or confidence > 100:
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an invalid confidence"
+    if outcome not in KNOWN_OUTCOMES:
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an unknown outcome"
+    if injection:
+        return OUTCOME_INJECTION, False, True, _short(payload.get("reason", ""), 280)
+    if outcome == OUTCOME_INJECTION:
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an inconsistent decision"
+    if outcome == OUTCOME_MET and not met:
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an inconsistent decision"
+    if outcome == OUTCOME_NOT_MET and met:
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an inconsistent decision"
+    if outcome == OUTCOME_UNVERIFIABLE and met:
+        return OUTCOME_UNVERIFIABLE, False, False, "the adjudicator returned an inconsistent decision"
+    if outcome == OUTCOME_MET and confidence < MIN_SETTLE_CONFIDENCE:
+        return OUTCOME_NOT_MET, False, False, "the evidence was not clear enough to settle"
+    return outcome, met, False, _short(payload.get("reason", ""), 280)
+
+
 def _vault_dict(vault) -> dict:
     checks = int(vault.checks)
     last_check = int(vault.last_check_at)
@@ -438,6 +528,11 @@ class Vigil(gl.Contract):
         remainder = lowered.split("://", 1)[1]
         if len(remainder) < 3 or remainder.startswith("/"):
             raise gl.vm.UserError("url must include a host")
+        host = _url_host(clean_url)
+        if not _is_public_host(host):
+            raise gl.vm.UserError("url must point at a public host")
+        if payee.as_hex.lower() == ZERO_ADDRESS_HEX:
+            raise gl.vm.UserError("beneficiary must not be the zero address")
         if payee == creator:
             raise gl.vm.UserError("beneficiary must differ from the creator")
         if amount == u256(0):
@@ -478,6 +573,8 @@ class Vigil(gl.Contract):
             raise gl.vm.UserError("vault is not active")
 
         now = _now()
+        if now >= int(vault.deadline):
+            raise gl.vm.UserError("the deadline has passed")
         checks = int(vault.checks)
         if checks >= MAX_CHECKS:
             raise gl.vm.UserError("this vault reached its check limit")
@@ -562,17 +659,22 @@ class Vigil(gl.Contract):
         if not isinstance(payload, dict):
             raise gl.vm.UserError("the adjudicator returned no decision")
 
-        outcome = str(payload.get("outcome", OUTCOME_UNVERIFIABLE))
-        met = bool(payload.get("met", False))
-        injection = bool(payload.get("injection", False))
-        reason = _short(payload.get("reason", ""), 280)
+        outcome, met, injection, reason = _normalise_consensus(payload)
 
         vault = self.vaults[vault_id]
         if vault.state != STATE_ACTIVE:
             raise gl.vm.UserError("vault is no longer active")
+        now_after = _now()
+        if now_after >= int(vault.deadline):
+            raise gl.vm.UserError("the deadline has passed")
+        fresh_checks = int(vault.checks)
+        if fresh_checks >= MAX_CHECKS:
+            raise gl.vm.UserError("this vault reached its check limit")
+        if fresh_checks > checks and now_after < int(vault.last_check_at) + CHECK_COOLDOWN:
+            raise gl.vm.UserError("check cooldown is still running")
 
-        vault.checks = u32(checks + 1)
-        vault.last_check_at = u256(now)
+        vault.checks = u32(fresh_checks + 1)
+        vault.last_check_at = u256(now_after)
         vault.last_outcome = outcome
         vault.last_reason = reason
         vault.last_met = met
@@ -583,7 +685,7 @@ class Vigil(gl.Contract):
             amount = vault.amount
             payee = vault.beneficiary
             vault.state = STATE_TRIGGERED
-            vault.resolved_at = u256(now)
+            vault.resolved_at = u256(now_after)
             self.credits[payee] = self.credits.get(payee, u256(0)) + amount
             self.total_locked = self.total_locked - amount
             self.total_settled = self.total_settled + amount

@@ -32,8 +32,8 @@ closed. A flagged check can never settle a vault. `met` below 60 confidence does
 
 ## What a user can do
 
-- Open a vault: title, plain-English condition, one public URL, beneficiary, deadline, deposit.
-- Check it: anyone, once per hour, up to 12 times.
+- Open a vault: title, plain-English condition, one public host, beneficiary, deadline, deposit.
+- Check it: anyone, once per hour, up to 12 times, and only before the deadline.
 - Cancel: the creator, while the vault is active.
 - Refund: anyone, after the deadline, back to the creator.
 - Withdraw: each address pulls the credit Vigil recorded for it. Payouts are pull payments.

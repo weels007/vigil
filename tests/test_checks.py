@@ -233,9 +233,32 @@ def test_check_on_a_triggered_vault_is_rejected(deploy, direct_vm, actors):
         deploy.check_vault(vault_id)
 
 
-def test_check_after_the_deadline_can_still_settle(deploy, direct_vm, actors):
+def test_check_after_the_deadline_is_rejected(deploy, direct_vm, actors):
     vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
     warp(direct_vm, DEADLINE + 1)
+    mock_page(direct_vm)
+    mock_decision(direct_vm, met=True)
+    with direct_vm.expect_revert("deadline has passed"):
+        deploy.check_vault(vault_id)
+    data = vault_json(deploy, vault_id)
+    assert data["state"] == "ACTIVE"
+    assert data["checks"] == 0
+    assert int(deploy.get_credit_of(hex_of(actors["bob"]))) == 0
+
+
+def test_check_at_the_deadline_is_rejected(deploy, direct_vm, actors):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    warp(direct_vm, DEADLINE)
+    mock_page(direct_vm)
+    mock_decision(direct_vm, met=True)
+    with direct_vm.expect_revert("deadline has passed"):
+        deploy.check_vault(vault_id)
+    assert vault_json(deploy, vault_id)["state"] == "ACTIVE"
+
+
+def test_check_before_the_deadline_can_settle(deploy, direct_vm, actors):
+    vault_id = create_vault(deploy, direct_vm, actors["alice"], actors["bob"])
+    warp(direct_vm, DEADLINE - 1)
     mock_page(direct_vm)
     mock_decision(direct_vm, met=True)
     assert deploy.check_vault(vault_id) == "TRIGGERED"

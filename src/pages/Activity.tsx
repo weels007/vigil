@@ -95,6 +95,7 @@ export function Activity() {
       setNotice({ tone: 'warn', text: 'Connect a wallet to withdraw.' });
       return;
     }
+    if (isPending('withdraw')) return;
     const address = wallet.address;
     setNotice(null);
     try {

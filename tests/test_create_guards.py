@@ -96,6 +96,47 @@ def test_url_without_a_host_is_rejected(deploy, direct_vm, actors):
         create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="https://")
 
 
+def test_localhost_url_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("public host"):
+        create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="http://localhost:8080/page")
+
+
+def test_loopback_url_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("public host"):
+        create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="http://127.0.0.1/page")
+
+
+def test_private_ip_url_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("public host"):
+        create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="http://192.168.1.20/page")
+
+
+def test_private_172_url_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("public host"):
+        create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="http://172.20.10.2/page")
+
+
+def test_link_local_url_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("public host"):
+        create_vault(
+            deploy,
+            direct_vm,
+            actors["alice"],
+            actors["bob"],
+            url="http://169.254.169.254/latest/meta-data",
+        )
+
+
+def test_private_suffix_url_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("public host"):
+        create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="http://printer.local/status")
+
+
+def test_public_host_with_digits_is_accepted(deploy, direct_vm, actors):
+    create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="https://10.example.com/page")
+    assert int(deploy.get_vault_count()) == 1
+
+
 def test_http_url_is_accepted(deploy, direct_vm, actors):
     create_vault(deploy, direct_vm, actors["alice"], actors["bob"], url="http://example.com/page")
     assert int(deploy.get_vault_count()) == 1
@@ -111,6 +152,11 @@ def test_https_url_with_path_and_query_is_accepted(deploy, direct_vm, actors):
 def test_beneficiary_equal_to_creator_is_rejected(deploy, direct_vm, actors):
     with direct_vm.expect_revert("beneficiary must differ"):
         create_vault(deploy, direct_vm, actors["alice"], actors["alice"])
+
+
+def test_zero_beneficiary_is_rejected(deploy, direct_vm, actors):
+    with direct_vm.expect_revert("zero address"):
+        attempt(deploy, direct_vm, actors["alice"], "0x" + "0" * 40)
 
 
 def test_zero_deposit_is_rejected(deploy, direct_vm, actors):

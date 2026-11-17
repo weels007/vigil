@@ -19,9 +19,9 @@ A creator locks GEN with:
 - a **beneficiary** address that receives the money when the condition is met,
 - a **deadline** (unix seconds). After it, the deposit can go home.
 
-The creator can cancel before any successful check. After the deadline, anyone may trigger a refund
-to the creator. The beneficiary (or the creator, after a cancel or refund) pulls their credit with
-`withdraw()` — Vigil never pushes funds.
+The creator can cancel before any successful check. Checks are only accepted before the deadline; once
+it passes, anyone may trigger the refund to the creator. The beneficiary (or the creator, after a
+cancel or refund) pulls their credit with `withdraw()` — Vigil never pushes funds.
 
 ```
 ACTIVE ── check: met ─────────────▶ TRIGGERED   (credit → beneficiary)
@@ -80,8 +80,9 @@ strictly, returned `NOT_MET`, and nothing moved.
 | `get_credit_of(address)` | view | Pullable credit |
 | `get_totals()` | view | Contract totals and balance |
 
-Guards: field caps, http/https with a host, beneficiary ≠ creator, deposit > 0, future deadline,
-one check per hour per vault, at most 12 checks per vault, no `__receive__` handler.
+Guards: field caps, http/https with a public host (no localhost or private IP literals), beneficiary
+≠ creator and ≠ the zero address, deposit > 0, future deadline, one check per hour per vault, at most
+12 checks per vault, checks only before the deadline, no `__receive__` handler.
 
 ## The app
 
@@ -155,4 +156,8 @@ docs/ARCHITECTURE.md      state machine, consensus, invariants, limits
 - The LLM is a judge, not an oracle. Vigil contains that judgement with a confidence floor, an
   injection flag that blocks settlement, and a two-outcome agreement rule.
 - A check costs a transaction fee, not vault money. The cooldown and the 12-check cap bound abuse.
+- Checks stop at the deadline. A check that would settle after it is rejected, so the beneficiary
+  cannot race the creator's refund.
+- A private-network or loopback URL is refused at creation. DNS that later resolves to a private
+  address is outside the contract's control and is left to the GenVM web gateway.
 - Vigil is deployed on Studionet, GenLayer's development network. It is not audited for mainnet.
