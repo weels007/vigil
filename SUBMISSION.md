@@ -3,7 +3,7 @@
 **One line:** Vigil locks GEN in conditional vaults that unlock when a plain-English condition on a
 public web page becomes true, judged by an LLM and verified by GenLayer validators.
 
-Contract (Studionet): [0x72c10e377f8aA2B8a25FDb94Fd36Ae41D13e3b17](https://explorer-studio.genlayer.com/address/0x72c10e377f8aA2B8a25FDb94Fd36Ae41D13e3b17)
+Contract (Studionet): [0xe5f0604D72C36e4623971599E6C33816D7E973DF](https://explorer-studio.genlayer.com/address/0xe5f0604D72C36e4623971599E6C33816D7E973DF)
 
 ## The problem
 
