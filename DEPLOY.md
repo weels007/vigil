@@ -38,7 +38,9 @@ It runs when:
 - you start **Studionet → Run workflow** manually. Tick `adjudication` to include the slow, real LLM
   check.
 
-`[adjudication]` does everything `[deploy]` does and also runs `check_vault` against a live docs page.
+`[adjudication]` does everything `[deploy]` does and also runs two real `check_vault` calls against
+`example.com`: one condition the page plainly satisfies (it must settle), and one it plainly does not
+(it must stay `ACTIVE`).
 
 ### Wallets and secrets
 
@@ -73,7 +75,9 @@ The script deploys, then asserts on chain state:
 | withdraw | external transfer executes, credit returns to zero |
 | refund | a third vault with a 75-second deadline, 80 seconds of waiting, then `REFUNDED` and credit |
 | guard | a self-pay vault is rejected by the contract |
-| adjudication | `check_vault` settles only on `MET`; the state must agree with the log |
+| adjudication (true) | `check_vault` on `"The page contains the words 'Example Domain'"` returns `MET`, the vault becomes `TRIGGERED`, and the beneficiary credit equals the deposit |
+| adjudication (false) | `check_vault` on a condition the page does not satisfy leaves the vault `ACTIVE` and moves no credit |
+| adjudication payout | the beneficiary withdraws the settlement credit and its balance returns to zero |
 
 The step summary carries a result table and the contract address. `studionet-run.json` is uploaded as
 an artifact. If the address was recorded, the workflow commits it with an `if: always()` step.

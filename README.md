@@ -117,7 +117,8 @@ no network calls.
 See [DEPLOY.md](DEPLOY.md). The short version: push to `main` with `[deploy]` in the commit message
 (or run the **Studionet** workflow manually), and the workflow deploys with the project's test
 wallets, drives the lifecycle, prints a result table, and records the address back into this README,
-`SUBMISSION.md` and `src/lib/genlayer.ts`.
+`SUBMISSION.md` and `src/lib/genlayer.ts`. Push with `[adjudication]` instead to also run two real
+LLM checks against `example.com`: a true condition that must settle and a false one that must not.
 
 ## Layout
 

@@ -66,7 +66,8 @@ dashboard, no mock data.
 - `.github/workflows/ci.yml` — pytest plus `npm run build`.
 - `.github/workflows/studionet.yml` — deploys with the project's two test wallets, drives the real
   lifecycle (create, cancel, withdraw, refund after deadline, guard probe, and an opt-in live LLM
-  adjudication), prints a result table, and records the address back into the repository.
+  adjudication that settles a true condition and leaves a false one `ACTIVE`), prints a result table,
+  and records the address back into the repository.
 
 ## Links
 

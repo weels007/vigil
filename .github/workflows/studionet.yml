@@ -18,7 +18,7 @@ jobs:
   deploy:
     name: Deploy and drive the lifecycle
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     if: >
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.event.head_commit.message, '[deploy]') ||

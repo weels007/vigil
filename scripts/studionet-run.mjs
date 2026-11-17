@@ -225,9 +225,9 @@ function txSucceeded(receipt) {
   return status === 'ACCEPTED' || status === 'FINALIZED';
 }
 
-async function writeRaw(client, functionName, args, value = 0n) {
+async function writeRaw(client, functionName, args, value = 0n, attempts = 200) {
   const hash = await client.writeContract({ address: contractAddress, functionName, args, value });
-  const receipt = await waitForTx(client, hash);
+  const receipt = await waitForTx(client, hash, attempts);
   return { hash, receipt, ok: txSucceeded(receipt) };
 }
 
@@ -521,38 +521,113 @@ async function main() {
     return;
   }
 
-  const adjudicationDeadline = nowSeconds() + 7 * 86400;
-  const adjudicationCreated = await writeRaw(creatorClient, 'create_vault', [
+  if (beneficiaryBalance < MIN_BALANCE) {
+    beneficiaryBalance = await faucet(beneficiaryClient, beneficiary.address);
+  }
+
+  // 5a. A condition the page plainly satisfies must settle and credit the beneficiary.
+  const settlementDeadline = nowSeconds() + 7 * 86400;
+  const settlementCreated = await writeRaw(creatorClient, 'create_vault', [
     beneficiary.address,
-    'Studionet lifecycle: live adjudication',
-    'The page describes Intelligent Contracts as Python contracts that can access the web and call LLMs.',
-    'https://docs.genlayer.com/developers/intelligent-contracts/introduction',
-    adjudicationDeadline,
+    'Studionet lifecycle: live settlement',
+    "The page contains the words 'Example Domain'.",
+    'https://example.com/',
+    settlementDeadline,
   ], DEPOSIT);
   check(
-    'create_vault (adjudication path)',
-    adjudicationCreated.ok,
-    adjudicationCreated.receipt?.txExecutionResultName ?? 'no receipt',
+    'create_vault (settlement path)',
+    settlementCreated.ok,
+    settlementCreated.receipt?.txExecutionResultName ?? 'no receipt',
   );
 
-  const adjudicationVaultId = Number(await readContract('get_vault_count')) - 1;
-  const adjudicated = await writeRaw(creatorClient, 'check_vault', [adjudicationVaultId]);
-  record('check_vault receipt', adjudicated.ok ? 'PASS' : 'FAIL', adjudicated.receipt?.txExecutionResultName ?? 'no receipt');
-  if (!adjudicated.ok) failures += 1;
+  const settlementVaultId = Number(await readContract('get_vault_count')) - 1;
+  const settledCheck = await writeRaw(creatorClient, 'check_vault', [settlementVaultId], 0n, 400);
+  check(
+    'check_vault (settlement path)',
+    settledCheck.ok,
+    settledCheck.receipt?.txExecutionResultName ?? 'no receipt',
+  );
 
-  const decided = await readVault(adjudicationVaultId);
-  record('adjudication outcome', 'INFO', `${decided?.state} / ${decided?.last_outcome} / ${decided?.last_reason}`);
-  check(
-    'outcome is a known label',
-    ['MET', 'NOT_MET', 'UNVERIFIABLE', 'INJECTION'].includes(String(decided?.last_outcome)),
-    decided?.last_outcome,
+  const settledVault = await readVault(settlementVaultId);
+  record(
+    'adjudication verdict (settle)',
+    'INFO',
+    `${settledVault?.state} / ${settledVault?.last_outcome} / ${settledVault?.last_reason}`,
   );
   check(
-    'state matches the decision',
-    decided?.last_outcome === 'MET' ? decided?.state === 'TRIGGERED' : decided?.state === 'ACTIVE',
-    `${decided?.state} after ${decided?.last_outcome}`,
+    'the true condition meets and triggers',
+    settledVault?.state === 'TRIGGERED' &&
+      settledVault?.last_outcome === 'MET' &&
+      settledVault?.last_met === true,
+    `${settledVault?.state} after ${settledVault?.last_outcome}`,
   );
-  check('check log advanced', Number(decided?.checks ?? 0) >= 1, `${decided?.checks} checks`);
+  check(
+    'the adjudicator reported no injection',
+    settledVault?.last_injection === false,
+    String(settledVault?.last_injection),
+  );
+
+  const beneficiaryCredit = BigInt(await readContract('get_credit_of', [beneficiary.address]));
+  check('settlement credits the beneficiary', beneficiaryCredit === DEPOSIT, `${formatGen(beneficiaryCredit)} GEN`);
+
+  // 5b. A condition the page plainly does not meet must leave the vault ACTIVE.
+  const negativeDeadline = nowSeconds() + 7 * 86400;
+  const negativeCreated = await writeRaw(creatorClient, 'create_vault', [
+    beneficiary.address,
+    'Studionet lifecycle: live no-settle',
+    'The page announces that Project Aurora has shipped its first release.',
+    'https://example.com/',
+    negativeDeadline,
+  ], DEPOSIT);
+  check(
+    'create_vault (no-settle path)',
+    negativeCreated.ok,
+    negativeCreated.receipt?.txExecutionResultName ?? 'no receipt',
+  );
+
+  const negativeVaultId = Number(await readContract('get_vault_count')) - 1;
+  const negativeCheck = await writeRaw(creatorClient, 'check_vault', [negativeVaultId], 0n, 400);
+  check(
+    'check_vault (no-settle path)',
+    negativeCheck.ok,
+    negativeCheck.receipt?.txExecutionResultName ?? 'no receipt',
+  );
+
+  const negativeVault = await readVault(negativeVaultId);
+  record(
+    'adjudication verdict (no-settle)',
+    'INFO',
+    `${negativeVault?.state} / ${negativeVault?.last_outcome} / ${negativeVault?.last_reason}`,
+  );
+  const beneficiaryCreditAfterNegative = BigInt(
+    await readContract('get_credit_of', [beneficiary.address]),
+  );
+  check(
+    'the false condition never settles',
+    negativeVault?.state === 'ACTIVE' && negativeVault?.last_outcome !== 'MET',
+    `${negativeVault?.state} after ${negativeVault?.last_outcome}`,
+  );
+  check(
+    'no credit moves on a no-settle',
+    beneficiaryCreditAfterNegative === beneficiaryCredit,
+    `${formatGen(beneficiaryCreditAfterNegative)} GEN`,
+  );
+
+  // 5c. The beneficiary pulls the settlement credit.
+  const beneficiaryWithdraw = await writeRaw(beneficiaryClient, 'withdraw', []);
+  check(
+    'beneficiary withdraws the settlement',
+    beneficiaryWithdraw.ok,
+    beneficiaryWithdraw.receipt?.txExecutionResultName ?? 'no receipt',
+  );
+  const beneficiaryCreditAfterWithdraw = BigInt(
+    await readContract('get_credit_of', [beneficiary.address]),
+  );
+  check(
+    'beneficiary credit clears after withdraw',
+    beneficiaryCreditAfterWithdraw === 0n,
+    `${formatGen(beneficiaryCreditAfterWithdraw)} GEN`,
+  );
 }
 
 main()
