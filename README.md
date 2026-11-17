@@ -9,7 +9,7 @@ unreadable, or tries to manipulate the judge, the vault stays locked.
 
 Live contract: `0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC` on GenLayer Studionet — [explorer](https://explorer-studio.genlayer.com/address/0x0Ae4F21efC452642dE258711aC9739dde4C5b1fC)
 
-App: Vite static build, Vercel-ready — deployment guide in [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md).
+Live app: [vigil-alpha-eight.vercel.app](https://vigil-alpha-eight.vercel.app) — Vercel deployment; the guide is in [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md).
 
 ## The shape of a vault
 

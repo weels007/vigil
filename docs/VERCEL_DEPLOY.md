@@ -60,8 +60,9 @@ The CLI asks the same questions as the dashboard the first time.
   `https://studio.genlayer.com/api`).
 - Create a test vault against a public URL, then open its detail page to check the countdown, check
   log and evidence link.
-- Copy the production URL into the `App:` line of `README.md` and the Links section of
-  `SUBMISSION.md`.
+- Copy the production URL into the `Live app:` line of `README.md` and the Links section of
+  `SUBMISSION.md`. This repository's current production URL is
+  <https://vigil-alpha-eight.vercel.app>.
 - From then on, every push to `main` rebuilds the production deployment. Branches get preview URLs.
 - A custom domain can be attached in the Vercel project settings.
 
