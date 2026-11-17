@@ -147,6 +147,7 @@ src/                      Vite + React app
 scripts/studionet-run.mjs deploy + lifecycle driver
 scripts/record-address.mjs writes the address into the app and docs
 docs/ARCHITECTURE.md      state machine, consensus, invariants, limits
+docs/SECURITY_AUDIT.md    audit findings, fixes and feedback mapping
 ```
 
 ## Security review

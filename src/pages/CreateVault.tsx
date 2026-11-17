@@ -18,6 +18,25 @@ interface UiNotice {
 
 const DAY = 86400;
 
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  if (host === 'localhost' || host === '[::1]' || host === '::1') return true;
+  if (host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!ipv4) return false;
+  const parts = ipv4.slice(1).map(Number);
+  if (parts.some((part) => part > 255)) return false;
+  const [first, second] = parts;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 192 && second === 168) ||
+    (first === 172 && second >= 16 && second <= 31)
+  );
+}
+
 function initialDeadline(): string {
   return datetimeLocalValue(Math.floor(Date.now() / 1000) + 30 * DAY);
 }
@@ -43,6 +62,9 @@ export function CreateVault() {
     if (!/^0x[0-9a-fA-F]{40}$/.test(beneficiary.trim())) {
       return 'The beneficiary must be a 20-byte hex address (0x followed by 40 hex characters).';
     }
+    if (/^0x0{40}$/i.test(beneficiary.trim())) {
+      return 'The beneficiary cannot be the zero address.';
+    }
     if (wallet.address && beneficiary.trim().toLowerCase() === wallet.address.toLowerCase()) {
       return 'The beneficiary must be a different address from yours.';
     }
@@ -50,6 +72,14 @@ export function CreateVault() {
     if (!/^https?:\/\//i.test(trimmedUrl)) return 'The URL must start with http:// or https://.';
     if (/\s/.test(trimmedUrl)) return 'The URL must not contain spaces.';
     if (trimmedUrl.length > 300) return 'Keep the URL under 300 characters.';
+    let parsed: URL;
+    try {
+      parsed = new URL(trimmedUrl);
+    } catch {
+      return 'The URL must include a public host.';
+    }
+    if (!parsed.hostname) return 'The URL must include a public host.';
+    if (isPrivateHost(parsed.hostname)) return 'The URL must point at a public host.';
     let deadlineUnix = 0;
     try {
       deadlineUnix = toUnix(deadline);

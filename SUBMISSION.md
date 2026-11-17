@@ -83,4 +83,5 @@ Full result table: [Studionet run 44008062602](https://github.com/weels007/vigil
 
 - Contract: see the address at the top, or `Live contract` in `README.md`.
 - Architecture: `docs/ARCHITECTURE.md`.
+- Security audit: `docs/SECURITY_AUDIT.md`.
 - Deployment: `DEPLOY.md`.
