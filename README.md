@@ -47,6 +47,23 @@ to trust one key. Vigil uses an Intelligent Contract instead:
 
 A `UNVERIFIABLE` or `INJECTION` result never settles. Neither does `met` below 60 confidence.
 
+## Verified on Studionet
+
+The `[adjudication]` run of 17 Nov 2026 deployed this contract and drove the whole lifecycle with
+two funded wallets, reading the state back after every step:
+
+- `create_vault` → `cancel_vault` → `withdraw`: the creator was credited 0.01 GEN and pulled it.
+- A vault with a 75-second deadline was `REFUNDED` after it passed, crediting the creator.
+- The self-pay guard rejected a vault whose beneficiary was its creator (vault count unchanged).
+- A live `check_vault` on `example.com` reading "The page contains the word 'domain'" returned
+  `MET`, the vault became `TRIGGERED`, the beneficiary was credited 0.01 GEN and then withdrew it.
+- A second live check on a condition the page does not meet stayed `ACTIVE` with no credit.
+- `get_totals` reported the expected ledger after each move.
+
+The workflow's step summary carries the full table; `studionet-run.json` is uploaded as an artifact.
+The first live attempt also proved the fail-closed rule: a judge read an exact-phrase condition
+strictly, returned `NOT_MET`, and nothing moved.
+
 ## Contract surface
 
 | Method | Kind | What it does |

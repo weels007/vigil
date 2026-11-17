@@ -57,6 +57,16 @@ The interface is a night watch: midnight blue, moonlight text, one warm amber ac
 for "unlocked", a lantern/eye mark, and a ledger-like serif and monospaced typography. No template
 dashboard, no mock data.
 
+## Live verification
+
+The `[adjudication]` workflow run of 17 Nov 2026 deployed the contract with two funded test wallets
+and asserted the result on chain after every step: cancel and withdraw, a deadline refund, the
+self-pay guard, a live `check_vault` that returned `MET` and settled to the beneficiary (who then
+withdrew the credit), and a live check on a condition the page does not meet that left its vault
+`ACTIVE`.
+
+Full result table: [Studionet run 44008062602](https://github.com/weels007/vigil/actions/runs/44008062602).
+
 ## Proof
 
 - `contracts/vigil.py` — the Intelligent Contract, runner hash pinned.
