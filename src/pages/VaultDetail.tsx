@@ -13,7 +13,7 @@ import {
   withdrawAction,
 } from '../lib/contract';
 import { translateError } from '../lib/errors';
-import { formatDate, formatDateTime, formatGen, shortAddress, toWei } from '../lib/format';
+import { countdown, formatDate, formatDateTime, formatGen, shortAddress, toWei } from '../lib/format';
 import { explorerAddress, waitForOutcome } from '../lib/genlayer';
 import { useAsync } from '../lib/useAsync';
 import { useWallet } from '../lib/wallet';
@@ -102,6 +102,7 @@ export function VaultDetail({ id }: { id: number }) {
   const canRefund = v.state === 'ACTIVE' && now >= v.deadline;
   const canCancel = v.state === 'ACTIVE' && isCreator;
   const canCheck = v.state === 'ACTIVE' && v.checks < v.maxChecks;
+  const cooldownActive = canCheck && v.checks > 0 && now < v.checkableAt;
   const creditValue = credit.data ?? 0n;
 
   return (
@@ -178,7 +179,11 @@ export function VaultDetail({ id }: { id: number }) {
               <div>
                 <dt>Next read allowed</dt>
                 <dd className="mono">
-                  {v.checks > 0 && v.checks < v.maxChecks ? formatDateTime(v.checkableAt) : '—'}
+                  {v.checks >= v.maxChecks
+                    ? '—'
+                    : v.checks === 0
+                      ? 'now'
+                      : formatDateTime(v.checkableAt)}
                 </dd>
               </div>
               <div>
@@ -206,7 +211,7 @@ export function VaultDetail({ id }: { id: number }) {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={isPending('check') || !wallet.address}
+                  disabled={isPending('check') || !wallet.address || cooldownActive}
                   onClick={() =>
                     void act(
                       'check',
@@ -216,7 +221,11 @@ export function VaultDetail({ id }: { id: number }) {
                     )
                   }
                 >
-                  {isPending('check') ? 'The keeper is reading…' : 'Check now'}
+                  {isPending('check')
+                    ? 'The keeper is reading…'
+                    : cooldownActive
+                      ? `Allowed in ${countdown(v.checkableAt, now).text}`
+                      : 'Check now'}
                 </button>
               ) : null}
 
